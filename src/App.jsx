@@ -30,7 +30,7 @@ async function askLLM(history, status, serious, mood, stop) {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(20000),
       body: JSON.stringify({ messages: history.filter((m) => m.text !== "__deleted__" && !m.err).slice(-16).map(({ role, text }) => ({ role, text })), status, serious, mood, stop }),
     });
     const d = await r.json().catch(() => ({}));
@@ -228,7 +228,7 @@ export default function App() {
     const wait = sleep(rand(1500, 2600)); // intentional delay, < 3s
     const [llm] = await Promise.all([askLLM(history, statusFor(count), nowSerious, mi < 0 ? "flirty" : MOODS[mi].k, ack), wait]);
     setBusy(false);
-    if (!llm) { setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), t: time() }]); return; }
+    if (!Array.isArray(llm)) { setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), why: llm.why, t: time() }]); return; }
     let bubbles = llm;
     if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
     const mk = mi < 0 ? "serious" : MOODS[mi].k;
@@ -369,7 +369,7 @@ export default function App() {
             {msgs.map((m) => m.text === "__deleted__"
               ? <div key={m.id} className="b her deleted">🚫 This message was deleted</div>
               : m.err ? (
-                <div key={m.id} className="b her err">{m.text}<br /><button className="retry" onClick={retry}>↻ Retry (she might come back)</button></div>
+                <div key={m.id} className="b her err">{m.text}<br /><small>{m.why}</small><br /><button className="retry" onClick={retry}>↻ Retry (she might come back)</button></div>
               ) : (
                 <div key={m.id} className={"b " + m.role}>
                   {m.text.split("\n").map((l, j) => <div key={j}>{l}</div>)}
