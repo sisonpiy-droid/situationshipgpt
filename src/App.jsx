@@ -262,7 +262,7 @@ export default function App() {
     const wait = sleep(rand(1000, 1800)); // intentional delay, < 3s; the rest of the burst is staggered below
     const [llm] = await Promise.all([askLLM(history, statusFor(count), nowSerious, mi < 0 ? "flirty" : MOODS[mi].k, ack), wait]);
     if (!Array.isArray(llm)) {
-      setBusy(false); setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), why: llm.why, t: time() }]); return; }
+      setBusy(false); setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: /no-key/.test(llm.why) ? "this copy of the app has no Gemini key. open situationshipgpt-ten.vercel.app instead 🔑" : oneOf(ERRS), why: llm.why, t: time() }]); return; }
     let bubbles = llm;
     if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
     const mk = mi < 0 ? "serious" : MOODS[mi].k;
