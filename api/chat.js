@@ -43,7 +43,7 @@ const MOODS = {
 };
 
 const SAFETY = ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT"]
-  .map((category) => ({ category, threshold: "BLOCK_MEDIUM_AND_ABOVE" }));
+  .map((category) => ({ category, threshold: category.includes("SEXUALLY") ? "BLOCK_MEDIUM_AND_ABOVE" : "BLOCK_ONLY_HIGH" }));
 
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9ऀ-ॿ ]/g, "").trim();
 
