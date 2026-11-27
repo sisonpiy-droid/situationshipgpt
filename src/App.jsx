@@ -214,7 +214,8 @@ export default function App() {
     const i = setInterval(() => setTyping((t) => (t + 1) % TYPING.length), 700);
     return () => clearInterval(i);
   }, [typingNow]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [msgs, typingNow]);
+  // Scroll only the message list. scrollIntoView also scrolled the whole page, yanking it back up whenever a message or "typing" state changed.
+  useEffect(() => { const el = endRef.current?.parentElement; el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }, [msgs, typingNow]);
   useEffect(() => { if (!busy && !sure) inputRef.current?.focus({ preventScroll: true }); }, [busy, sure]); // keep typing seamlessly
   useEffect(() => { if (notif) { const t = setTimeout(() => setNotif(null), 3500); return () => clearTimeout(t); } }, [notif]);
 
