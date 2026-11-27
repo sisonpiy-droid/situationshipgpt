@@ -92,3 +92,5 @@ button{font-family:"Comic Neue",cursive}
 .paper.cert .grow{justify-content:center}
 .cookie{position:fixed;left:50%;bottom:62px;translate:-50% 0;width:min(560px,94vw);z-index:25;margin:0}
 .overlay{display:flex}.overlay>*{margin:auto}
+.b.err{background:#fff0f0;border:2px dashed #d6007a}
+.retry{margin-top:4px;font:700 12px "Special Elite",monospace;background:#25d366;border:2px solid #075e54;border-radius:8px;padding:3px 8px;cursor:pointer;box-shadow:2px 2px 0 #075e54}

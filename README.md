@@ -40,3 +40,6 @@ Deploy from this folder (`situationshipgpt/`); Vercel detects Vite and serves `a
 - **Make her reconsider** (regenerate, renamed) · Icebreakers (starters) · Break Up (new chat).
 - **Relationship MIS** PNG: Emotional ROI, CAC, churn probability, runway, NPS. **Divorce certificate** PNG with your name (stays in the tab).
 - Opening 10 seconds: she's already typing, deleting and overthinking before you say anything. Cookie banner, dynamic tab title (guilt-trips you when you switch tabs), visitor counter.
+
+## v3: the brain
+No scripted replies. Every message is one fresh Gemini call (`api/chat.js`) with the last 16 turns and Kiki's own recent texts to avoid repeats; failures show a funny error with Retry. Diagnostics: `GET /api/chat` (config) and `GET /api/chat?ping=1` (live Gemini check, never returns the key). `npm test` runs a live repeat-message check.

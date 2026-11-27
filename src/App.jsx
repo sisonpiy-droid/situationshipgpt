@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ACK_STOP, COMPLIMENTS, MOODS, RESUME_RE, STARTERS, STOP_RE, reply, statusFor } from "./brain.js";
+import { MOODS, RESUME_RE, STARTERS, STOP_RE, statusFor } from "./brain.js";
+
+const ERRS = ["wifi ne mujhe leave on read kar diya 📡", "connection lost. emotionally also.", "server ne ghost kar diya. not me, i swear", "network aur tum, dono unstable"];
 
 const SITE = "situationshipgpt-ten.vercel.app";
 const LABELS = ["Send", "Don't text me", "Beg to send", "Your call"];
@@ -22,19 +24,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const time = () => new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 const oneOf = (a) => a[Math.floor(Math.random() * a.length)];
 
-async function askLLM(history, status, serious, mood) {
+// One Gemini call per message. null = failed (the UI shows a funny error with Retry).
+async function askLLM(history, status, serious, mood, stop) {
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      signal: AbortSignal.timeout(5000),
-      body: JSON.stringify({ messages: history.slice(-12).map(({ role, text }) => ({ role, text })), status, serious, mood }),
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({ messages: history.filter((m) => m.text !== "__deleted__" && !m.err).slice(-16).map(({ role, text }) => ({ role, text })), status, serious, mood, stop }),
     });
-    if (!r.ok) return null;
-    const { reply: t } = await r.json();
-    return t ? t.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3) : null;
+    const d = await r.json().catch(() => ({}));
+    return r.ok && d.reply ? d.reply.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 2) : null;
   } catch {
-    return null; // no key, offline, slow: scripted fallback takes over
+    return null;
   }
 }
 
@@ -46,10 +48,9 @@ function buildMIS(msgs, damage, status, dodges) {
   const mine = msgs.filter((m) => m.role === "me");
   const text = mine.map((m) => m.raw).join(" ");
   const words = text.split(/\s+/).filter(Boolean).length;
-  const comps = mine.filter((m) => COMPLIMENTS.some((c) => m.text.startsWith(c))).length;
   const moods = new Set(msgs.filter((m) => m.mood).map((m) => m.mood)).size;
   const hr = new Date().getHours(), seed = seedOf(text);
-  const cac = 80 * mine.length + 150 * comps + 20 * dodges;
+  const cac = 80 * mine.length + 20 * dodges;
   const roi = -Math.min(99, Math.round(damage * 0.6 + (seed % 35)));
   const churn = Math.min(99, Math.round(35 + damage / 2 + dodges * 2));
   const runway = Math.max(1, Math.round(60 - damage / 2 - mine.length));
@@ -57,7 +58,6 @@ function buildMIS(msgs, damage, status, dodges) {
   if (/\?/.test(text)) flags.push("Asks questions. Wants answers. Needy.");
   if (/sorry|please|pls/i.test(text)) flags.push("Said sorry/please. Zero leverage.");
   if (hr >= 23 || hr < 5) flags.push("Texting at this hour. We know what that means.");
-  if (comps) flags.push("Paid compliments upfront. Pay-to-play energy.");
   if (dodges >= 4) flags.push("Chased a button. Imagine chasing a person.");
   flags.push("Replied within seconds. Too available.");
   const verdict = damage >= 80 ? "Not a relationship. A case study. Therapy recommended." : damage >= 50 ? "Great chemistry, terrible clarity. Textbook situationship." : "Cute. Dangerous. Still undefined.";
@@ -159,9 +159,7 @@ export default function App() {
   const [dodges, setDodges] = useState(0); // dodges done for the current message
   const [dodgesAll, setDodgesAll] = useState(0);
   const [pos, setPos] = useState([0, 0]);
-  const [gate, setGate] = useState(null); // pending message waiting for a compliment
   const [sure, setSure] = useState(null); // pending message waiting for "are you sure?"
-  const [pick, setPick] = useState("");
   const [serious, setSerious] = useState(false);
   const [mood, setMood] = useState("Warming up 🥶");
   const [notif, setNotif] = useState(null);
@@ -172,7 +170,7 @@ export default function App() {
   const [visitor] = useState(() => 42000 + Math.floor(Math.random() * 900));
   const n = msgs.filter((m) => m.role === "me").length;
   const status = statusFor(n);
-  const endRef = useRef(null), tick = useRef(0), lastMood = useRef(-1), t0 = useRef(Date.now()), ghostLock = useRef(false);
+  const endRef = useRef(null), lastReq = useRef(null), tick = useRef(0), lastMood = useRef(-1), t0 = useRef(Date.now()), ghostLock = useRef(false);
 
   const toast = (t) => setNotif(t);
   const flashGhost = (ms) => { setGhost(true); setTimeout(() => setGhost(false), ms); };
@@ -226,13 +224,14 @@ export default function App() {
     const mi = nowSerious ? -1 : pickMood();
     const mine = history.filter((m) => m.role === "me");
     const prev = mine.length > 1 ? mine[mine.length - 2].raw : "";
+    lastReq.current = [history, raw, count, nowSerious, ack];
     const wait = sleep(rand(1500, 2600)); // intentional delay, < 3s
-    const [llm] = await Promise.all([askLLM(history, statusFor(count), nowSerious, mi < 0 ? "flirty" : MOODS[mi].k), wait]);
-    let bubbles = llm || reply(raw, count, nowSerious, statusFor(count), Math.max(mi, 0), prev);
-    if (ack) bubbles = [ACK_STOP, ...bubbles.slice(-1)];
-    else if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
-    const mk = mi < 0 ? "serious" : MOODS[mi].k;
+    const [llm] = await Promise.all([askLLM(history, statusFor(count), nowSerious, mi < 0 ? "flirty" : MOODS[mi].k, ack), wait]);
     setBusy(false);
+    if (!llm) { setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), t: time() }]); return; }
+    let bubbles = llm;
+    if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
+    const mk = mi < 0 ? "serious" : MOODS[mi].k;
     setMood(mi < 0 ? "Serious 🫡 (boundaries)" : MOODS[mi].n);
     setMsgs((m) => [...m, ...bubbles.map((b) => ({ id: ++uid.current + 1000, role: "her", text: b, t: time(), mood: mk }))]);
     return count;
@@ -270,16 +269,20 @@ export default function App() {
   function submit(e) {
     e?.preventDefault();
     const raw = text.trim();
-    if (!raw || busy || gate || sure) return;
+    if (!raw || busy || sure) return;
     if (dodges < 2) return dodge();
-    const r = Math.random();
-    if (n === 1 || r < 0.28) { setGate(raw); setPick(""); return; } // compliment tax: always on message 2
-    if (r < 0.45) { setSure(raw); return; }
+    if (Math.random() < 0.25) { setSure(raw); return; }
     deliver(raw, raw);
   }
 
+  function retry() {
+    if (busy || !lastReq.current) return;
+    setMsgs((m) => m.filter((x) => !x.err));
+    respond(...lastReq.current);
+  }
+
   function dodge() {
-    if (!text.trim() || busy || gate || sure || dodges >= 2) return;
+    if (!text.trim() || busy || sure || dodges >= 2) return;
     const small = window.innerWidth < 600;
     setPos([rand(small ? -90 : -170, small ? 40 : 170), -rand(50, 90)]);
     setDodges((d) => d + 1);
@@ -301,7 +304,7 @@ export default function App() {
     setBreaking(true);
     setTimeout(() => {
       setMsgs([{ id: 0, role: "her", text: "oh. you're back. i didn't block you. i muted you. 🙂", t: time() }]);
-      setDamage(4); setSerious(false); setPanel(null); setBreaking(false); setGate(null); setSure(null); setText(""); setDodgesAll(0);
+      setDamage(4); setSerious(false); setPanel(null); setBreaking(false); setSure(null); setText(""); setDodgesAll(0);
       setMood("Warming up 🥶"); t0.current = Date.now(); lastMood.current = -1;
     }, 2200);
   }
@@ -365,7 +368,9 @@ export default function App() {
             <div className="day">TODAY · End-to-end encrypted (except my feelings)</div>
             {msgs.map((m) => m.text === "__deleted__"
               ? <div key={m.id} className="b her deleted">🚫 This message was deleted</div>
-              : (
+              : m.err ? (
+                <div key={m.id} className="b her err">{m.text}<br /><button className="retry" onClick={retry}>↻ Retry (she might come back)</button></div>
+              ) : (
                 <div key={m.id} className={"b " + m.role}>
                   {m.text.split("\n").map((l, j) => <div key={j}>{l}</div>)}
                   <small>{m.t} {m.role === "me" && <><span className={"tick" + (m.seen ? " on" : "")}>✓✓</span>{m.seen && <i className="seen"> {m.seen}</i>}</>}</small>
@@ -382,21 +387,8 @@ export default function App() {
             </div>
           )}
 
-          {n > 0 && lastIsHer && !busy && !gate && !sure && (
+          {n > 0 && lastIsHer && !busy && !sure && (
             <button className="reconsider" onClick={reconsider}>🥺 Make her reconsider</button>
-          )}
-
-          {gate && (
-            <div className="gate" role="dialog" aria-label="Pick a compliment">
-              <b>💐 Mandatory: compliment her before sending.</b>
-              {COMPLIMENTS.map((c) => (
-                <label key={c}><input type="radio" name="c" checked={pick === c} onChange={() => setPick(c)} /> {c}</label>
-              ))}
-              <div className="grow">
-                <button disabled={!pick} onClick={() => { const r = gate; setGate(null); deliver(r, `${pick}\n${r}`); }}>Submit with compliment</button>
-                <button className="tiny" onClick={() => setGate(null)}>cancel (cold)</button>
-              </div>
-            </div>
           )}
 
           {sure && (
