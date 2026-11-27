@@ -94,3 +94,15 @@ button{font-family:"Comic Neue",cursive}
 .overlay{display:flex}.overlay>*{margin:auto}
 .b.err{background:#fff0f0;border:2px dashed #d6007a}
 .retry{margin-top:4px;font:700 12px "Special Elite",monospace;background:#25d366;border:2px solid #075e54;border-radius:8px;padding:3px 8px;cursor:pointer;box-shadow:2px 2px 0 #075e54}
+.b{position:relative;cursor:pointer;-webkit-user-select:none;user-select:none}
+.rx{position:absolute;right:6px;bottom:-12px;background:#fff;border-radius:99px;padding:0 5px;font-size:14px;box-shadow:1px 1px 0 rgba(0,0,0,.25)}
+.b.deleted.me{background:#f1f1f1}
+.vn{font:700 14px "Special Elite",monospace;color:#075e54}.vn i{display:block;font:italic 12px "Comic Neue";color:#777;margin-top:2px}
+.share-btn{top:auto;bottom:10px;right:8px;transform:rotate(-2deg)}
+@media(max-width:760px){
+ .input{position:sticky;bottom:0;background:#e5ddd5;padding-bottom:4px}
+ .cookie{top:auto;bottom:104px}
+ .breakup{top:40px;bottom:auto;left:6px;font-size:13px;padding:5px 8px}
+ .share-btn{bottom:70px}
+}
+@media(max-width:760px){.cookie{bottom:150px}.breakup{top:auto;bottom:6px;left:6px}.foot{padding-bottom:44px}}

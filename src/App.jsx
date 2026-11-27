@@ -113,6 +113,37 @@ function buildCert(who, msgs, t0) {
   ];
 }
 
+function shareChat(msgs, status) {
+  const rows = msgs.filter((m) => m.text !== "__deleted__" && !m.err).slice(-7), W = 540, P = 18, MW = 360;
+  const c = document.createElement("canvas"), ctx = c.getContext("2d"); c.width = W; c.height = 1400;
+  ctx.font = "17px 'Comic Neue', 'Comic Sans MS', sans-serif";
+  const laid = rows.map((m) => { const ls = m.voice ? ["🎤 voice note (0:07)"] : wrap(ctx, m.text.replace(/\n/g, " "), MW - 24); return { m, ls, h: ls.length * 22 + 18 }; });
+  const H = 70 + laid.reduce((a, l) => a + l.h + 10, 0) + 70;
+  c.height = H;
+  ctx.fillStyle = "#e5ddd5"; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, "#075e54"); g.addColorStop(1, "#ff4fa3");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 56);
+  ctx.fillStyle = "#fff"; ctx.font = "bold 20px 'Comic Neue', sans-serif"; ctx.textAlign = "left"; ctx.fillText("Kiki 💅  ·  " + status.replace(/ [^\w ]+$/u, ""), P, 35);
+  let y = 72;
+  for (const { m, ls, h } of laid) {
+    ctx.font = "17px 'Comic Neue', 'Comic Sans MS', sans-serif";
+    const me = m.role === "me", w = Math.min(MW, Math.max(...ls.map((l) => ctx.measureText(l).width)) + 28), x = me ? W - P - w : P;
+    ctx.fillStyle = me ? "#dcf8c6" : "#fff"; ctx.beginPath(); ctx.roundRect(x, y, w, h, 12); ctx.fill();
+    ctx.fillStyle = "#222";
+    ls.forEach((l, i) => ctx.fillText(l, x + 14, y + 24 + i * 22));
+    if (m.rx) { ctx.font = "16px sans-serif"; ctx.fillText(m.rx, x + w - 24, y + h + 6); }
+    y += h + 10;
+  }
+  ctx.fillStyle = "#8b0050"; ctx.font = "bold 15px 'Special Elite', monospace"; ctx.textAlign = "center";
+  ctx.fillText("The only AI that gives you mixed signals instead of tokens.", W / 2, H - 38);
+  ctx.fillText(SITE, W / 2, H - 16);
+  c.toBlob(async (b) => {
+    const f = new File([b], "kiki-chat.png", { type: "image/png" });
+    try { if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], text: "my situationship with an AI 💀 " + SITE }); return; } } catch { /* cancelled: fall through to download */ }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = f.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
+}
+
 function wrap(ctx, str, w) {
   const out = []; let line = "";
   for (const word of str.split(" ")) {
@@ -157,6 +188,7 @@ export default function App() {
   const [typing, setTyping] = useState(0);
   const [label, setLabel] = useState(0);
   const [dodges, setDodges] = useState(0); // dodges done for the current message
+  const [need, setNeed] = useState(2); // dodges required: always on message 1, then ~40% of the time
   const [dodgesAll, setDodgesAll] = useState(0);
   const [pos, setPos] = useState([0, 0]);
   const [sure, setSure] = useState(null); // pending message waiting for "are you sure?"
@@ -234,10 +266,17 @@ export default function App() {
     if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
     const mk = mi < 0 ? "serious" : MOODS[mi].k;
     setMood(mi < 0 ? "Serious 🫡 (boundaries)" : MOODS[mi].n);
+    if (!bubbles.some((b) => !/^\[react:[^\]]*\]\s*$/i.test(b))) bubbles = [...bubbles, "👀"];
     // Real people fire texts one after another: show each with a short "typing…" beat.
-    for (const [i, b] of bubbles.entries()) {
+    for (let [i, b] of bubbles.entries()) {
       if (i) { setBusy(false); setGhost(true); await sleep(rand(600, 1000)); setGhost(false); }
-      setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", text: b, t: time(), mood: mk }]);
+      const rm = b.match(/^\[react:\s*([^\]\s]+)\]\s*(.*)$/i);
+      if (rm) {
+        setMsgs((ms) => { const li = ms.map((x) => x.role).lastIndexOf("me"); return ms.map((x, j) => (j === li ? { ...x, rx: rm[1] } : x)); });
+        b = rm[2]; if (!b) continue;
+      }
+      const vm = b.match(/^\[voice\]\s*(.+)/i);
+      setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", text: vm ? vm[1] : b, voice: !!vm, edited: !vm && Math.random() < 0.1, t: time(), mood: mk }]);
     }
     setBusy(false);
     return count;
@@ -251,7 +290,7 @@ export default function App() {
     const mineMsg = { id: ++uid.current, role: "me", text: sentText, raw, t: time(), seen: null };
     const history = [...msgs, mineMsg];
     setMsgs(history);
-    setText(""); setDodges(0); setPos([0, 0]);
+    setText(""); setDodges(0); setPos([0, 0]); setNeed(Math.random() < 0.4 ? 2 : 0);
     setDamage((d) => Math.min(100, d + Math.round(rand(8, 15))));
     setTimeout(() => setMsgs((m) => m.map((x) => (x.id === mineMsg.id ? { ...x, seen: oneOf(SEEN) } : x))), 600);
     await respond(history, raw, count, nowSerious, ack);
@@ -277,10 +316,18 @@ export default function App() {
     e?.preventDefault();
     const raw = text.trim();
     if (!raw || busy || sure) return;
-    if (!kb && dodges < 2) return dodge();
+    if (!kb && dodges < need) return dodge();
     if (!kb && Math.random() < 0.25) { setSure(raw); return; }
     deliver(raw, raw);
   }
+
+  const RX = ["", "❤️", "😂", "💀"], holdT = useRef(null), held = useRef(false);
+  const react = (id) => { if (held.current) { held.current = false; return; } setMsgs((ms) => ms.map((x) => (x.id === id ? { ...x, rx: RX[(RX.indexOf(x.rx || "") + 1) % RX.length] } : x))); };
+  const hold = (m) => {
+    if (m.role !== "me") return;
+    holdT.current = setTimeout(() => { held.current = true; setMsgs((ms) => ms.map((x) => (x.id === m.id ? { ...x, text: "__deleted__" } : x))); toast("You unsent it. She already screenshotted it. 📸"); }, 700);
+  };
+  const unhold = () => clearTimeout(holdT.current);
 
   function retry() {
     if (busy || !lastReq.current) return;
@@ -289,7 +336,7 @@ export default function App() {
   }
 
   function dodge() {
-    if (!text.trim() || busy || sure || dodges >= 2) return;
+    if (!text.trim() || busy || sure || dodges >= need) return;
     const small = window.innerWidth < 600;
     setPos([rand(small ? -90 : -170, small ? 40 : 170), -rand(50, 90)]);
     setDodges((d) => d + 1);
@@ -311,7 +358,7 @@ export default function App() {
     setBreaking(true);
     setTimeout(() => {
       setMsgs([{ id: 0, role: "her", text: "oh. you're back. i didn't block you. i muted you. 🙂", t: time() }]);
-      setDamage(4); setSerious(false); setPanel(null); setBreaking(false); setSure(null); setText(""); setDodgesAll(0);
+      setDamage(4); setSerious(false); setPanel(null); setBreaking(false); setSure(null); setText(""); setDodgesAll(0); setNeed(2);
       setMood("Warming up 🥶"); t0.current = Date.now(); lastMood.current = -1;
     }, 2200);
   }
@@ -374,13 +421,15 @@ export default function App() {
           <div className="msgs" aria-live="polite">
             <div className="day">TODAY · End-to-end encrypted (except my feelings)</div>
             {msgs.map((m) => m.text === "__deleted__"
-              ? <div key={m.id} className="b her deleted">🚫 This message was deleted</div>
+              ? <div key={m.id} className={"b deleted " + m.role}>{m.role === "me" ? "🚫 You unsent a message" : "🚫 This message was deleted"}</div>
               : m.err ? (
                 <div key={m.id} className="b her err">{m.text}<br /><small>{m.why}</small><br /><button className="retry" onClick={retry}>↻ Retry (she might come back)</button></div>
               ) : (
-                <div key={m.id} className={"b " + m.role}>
-                  {m.text.split("\n").map((l, j) => <div key={j}>{l}</div>)}
-                  <small>{m.t} {m.role === "me" && <><span className={"tick" + (m.seen ? " on" : "")}>✓✓</span>{m.seen && <i className="seen"> {m.seen}</i>}</>}</small>
+                <div key={m.id} className={"b " + m.role} onClick={() => react(m.id)} onPointerDown={() => hold(m)} onPointerUp={unhold} onPointerLeave={unhold}>
+                  {m.voice && <div className="vn">🎤 ▶ ▂▃▅▇▅▃▂▁▂▄ 0:07<br /><i>auto-transcript: "{m.text}"</i></div>}
+                  {!m.voice && m.text.split("\n").map((l, j) => <div key={j}>{l}</div>)}
+                  {m.rx && <span className="rx">{m.rx}</span>}
+                  <small>{m.edited && "edited · "}{m.t} {m.role === "me" && <><span className={"tick" + (m.seen ? " on" : "")}>✓✓</span>{m.seen && <i className="seen"> {m.seen}</i>}</>}</small>
                 </div>
               ))}
             {typingNow && <div className="b her typing">{TYPING[typing]}<span className="dots" /></div>}
@@ -419,10 +468,10 @@ export default function App() {
               className="send"
               style={{ transform: `translate(${pos[0]}px, ${pos[1]}px)` }}
               onPointerEnter={(e) => e.pointerType === "mouse" && dodge()}
-              onClick={(e) => { if (dodges < 2) { e.preventDefault(); dodge(); } }}
+              onClick={(e) => { if (dodges < need) { e.preventDefault(); dodge(); } }}
             >{LABELS[label]}</button>
           </form>
-          <div className="hint">{dodges < 2 && text.trim() ? `Press Enter to send. The button is just emotionally unavailable (${dodges}/2)` : "Seen ✓✓ · typing sounds loud"}</div>
+          <div className="hint">{dodges < need && text.trim() ? `Press Enter to send. The button is just emotionally unavailable (${dodges}/${need})` : "Seen ✓✓ · typing sounds loud"}</div>
         </main>
       </div>
 
@@ -432,6 +481,7 @@ export default function App() {
       </footer>
 
       <button className="breakup" onClick={breakUp}>💔 BREAK UP</button>
+      {n >= 2 && <button className="rcpt share-btn" onClick={() => shareChat(msgs, status)}>📸 Share this chat</button>}
       {n >= 5 && <button className="rcpt" onClick={() => setPanel("mis")}>📊 Relationship MIS</button>}
       {n >= 6 && <button className="rcpt cert-btn" onClick={() => setPanel("cert")}>📜 Divorce papers</button>}
       {notif && <div className="notif" role="status">🔔 {notif}</div>}
