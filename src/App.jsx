@@ -34,9 +34,9 @@ async function askLLM(history, status, serious, mood, stop) {
       body: JSON.stringify({ messages: history.filter((m) => m.text !== "__deleted__" && !m.err).slice(-16).map(({ role, text }) => ({ role, text })), status, serious, mood, stop }),
     });
     const d = await r.json().catch(() => ({}));
-    return r.ok && d.reply ? d.reply.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 2) : null;
-  } catch {
-    return null;
+    return r.ok && d.reply ? d.reply.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3) : { why: [r.status, d.error, d.status, d.why].filter(Boolean).join(" ").slice(0, 90) };
+  } catch (e) {
+    return { why: String(e.name || e) };
   }
 }
 
@@ -226,15 +226,20 @@ export default function App() {
     const mine = history.filter((m) => m.role === "me");
     const prev = mine.length > 1 ? mine[mine.length - 2].raw : "";
     lastReq.current = [history, raw, count, nowSerious, ack];
-    const wait = sleep(rand(1500, 2600)); // intentional delay, < 3s
+    const wait = sleep(rand(1000, 1800)); // intentional delay, < 3s; the rest of the burst is staggered below
     const [llm] = await Promise.all([askLLM(history, statusFor(count), nowSerious, mi < 0 ? "flirty" : MOODS[mi].k, ack), wait]);
-    setBusy(false);
-    if (!Array.isArray(llm)) { setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), why: llm.why, t: time() }]); return; }
+    if (!Array.isArray(llm)) {
+      setBusy(false); setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", err: true, text: oneOf(ERRS), why: llm.why, t: time() }]); return; }
     let bubbles = llm;
     if (!nowSerious && count > 1 && Math.random() < 0.18) bubbles = ["__deleted__", ...bubbles];
     const mk = mi < 0 ? "serious" : MOODS[mi].k;
     setMood(mi < 0 ? "Serious 🫡 (boundaries)" : MOODS[mi].n);
-    setMsgs((m) => [...m, ...bubbles.map((b) => ({ id: ++uid.current + 1000, role: "her", text: b, t: time(), mood: mk }))]);
+    // Real people fire texts one after another: show each with a short "typing…" beat.
+    for (const [i, b] of bubbles.entries()) {
+      if (i) { setBusy(false); setGhost(true); await sleep(rand(600, 1000)); setGhost(false); }
+      setMsgs((m) => [...m, { id: ++uid.current + 1000, role: "her", text: b, t: time(), mood: mk }]);
+    }
+    setBusy(false);
     return count;
   }
 
