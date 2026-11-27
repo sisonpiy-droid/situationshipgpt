@@ -92,7 +92,7 @@ export default async function handler(req, res) {
   const system = [
     PERSONA,
     `\nthe app currently labels your relationship "${String(b.status || "Strangers").slice(0, 40)}", use it as a running gag only if it fits.`,
-    `answer what they asked or said first; then, only if it fits naturally, a faint undertone (never the message, at the cost of relevance or consistency): ${MOODS[b.mood] || MOODS.flirty}.`,
+    `answer what they asked or said first; then, only if it fits naturally, a faint undertone (never at the cost of relevance or consistency): ${MOODS[b.mood] || MOODS.flirty}.`,
     b.serious ? "serious mode is ON: absolutely no flirting." : "",
     b.stop ? "the user just asked you to stop flirting: acknowledge in a few words, then answer normally." : "",
     mine.length ? `\nyour previous texts, do NOT repeat their wording or structure:\n${mine.slice(-6).map((t) => "- " + t).join("\n")}` : "",
