@@ -170,7 +170,7 @@ export default function App() {
   const [visitor] = useState(() => 42000 + Math.floor(Math.random() * 900));
   const n = msgs.filter((m) => m.role === "me").length;
   const status = statusFor(n);
-  const endRef = useRef(null), lastReq = useRef(null), tick = useRef(0), lastMood = useRef(-1), t0 = useRef(Date.now()), ghostLock = useRef(false);
+  const endRef = useRef(null), lastReq = useRef(null), inputRef = useRef(null), tick = useRef(0), lastMood = useRef(-1), t0 = useRef(Date.now()), ghostLock = useRef(false);
 
   const toast = (t) => setNotif(t);
   const flashGhost = (ms) => { setGhost(true); setTimeout(() => setGhost(false), ms); };
@@ -183,6 +183,7 @@ export default function App() {
     return () => clearInterval(i);
   }, [typingNow]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [msgs, typingNow]);
+  useEffect(() => { if (!busy && !sure) inputRef.current?.focus({ preventScroll: true }); }, [busy, sure]); // keep typing seamlessly
   useEffect(() => { if (notif) { const t = setTimeout(() => setNotif(null), 3500); return () => clearTimeout(t); } }, [notif]);
 
   // First 10 seconds: she's already making it weird before you've typed anything.
@@ -266,12 +267,13 @@ export default function App() {
     respond(history, history[li].raw, n, serious, false);
   }
 
-  function submit(e) {
+  // kb = sent with Enter: keyboard is seamless, only the mouse/touch button plays games.
+  function submit(e, kb) {
     e?.preventDefault();
     const raw = text.trim();
     if (!raw || busy || sure) return;
-    if (dodges < 2) return dodge();
-    if (Math.random() < 0.25) { setSure(raw); return; }
+    if (!kb && dodges < 2) return dodge();
+    if (!kb && Math.random() < 0.25) { setSure(raw); return; }
     deliver(raw, raw);
   }
 
@@ -404,7 +406,9 @@ export default function App() {
           )}
 
           <form className="input" onSubmit={submit}>
-            <input value={text} onChange={onType} placeholder="Draft a risky text (she'll read it twice)" aria-label="Message" disabled={busy} />
+            <input ref={inputRef} value={text} onChange={onType} autoFocus enterKeyHint="send" autoComplete="off" readOnly={busy}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) submit(e, true); }}
+              placeholder="Draft a risky text (she'll read it twice)" aria-label="Message" />
             <button
               type="submit"
               className="send"
@@ -413,7 +417,7 @@ export default function App() {
               onClick={(e) => { if (dodges < 2) { e.preventDefault(); dodge(); } }}
             >{LABELS[label]}</button>
           </form>
-          <div className="hint">{dodges < 2 && text.trim() ? `Send button is playing hard to get (${dodges}/2)` : "Seen ✓✓ · typing sounds loud"}</div>
+          <div className="hint">{dodges < 2 && text.trim() ? `Press Enter to send. The button is just emotionally unavailable (${dodges}/2)` : "Seen ✓✓ · typing sounds loud"}</div>
         </main>
       </div>
 
