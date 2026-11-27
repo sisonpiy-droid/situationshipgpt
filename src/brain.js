@@ -1,10 +1,11 @@
 // Scripted Kiki. Used when there is no API key or the LLM is slow/down.
-// reply(text, n, serious, status) -> array of short bubbles. Always returns something.
+// reply(text, n, serious, status, mood, prev) -> array of short bubbles. Always returns something.
 
 export const STATUSES = ["Strangers", "Talking Stage", "Situationship", "Soft Launched 📸", "Married 💍", "In-laws Involved 👵", "Divorced 💔"];
 export const statusFor = (n) => (n > 6 ? "Divorced, Still Texting 🫠" : STATUSES[n]);
 
 export const STARTERS = [
+  "k",
   "What's the capital of France?",
   "How do I center a div?",
   "Give me a startup idea",
@@ -22,8 +23,72 @@ export const COMPLIMENTS = [
   "You're like a 100% attendance certificate 🏅",
 ];
 
+export const MOODS = [
+  { k: "flirty", n: "Flirty 😘" },
+  { k: "dry", n: "Dry texting 😐" },
+  { k: "cringe", n: "Cringe 🤡" },
+  { k: "overthink", n: "Overthinking 🌀" },
+  { k: "mba", n: "MBA mode 📊" },
+  { k: "drama", n: "Dramatic 🎭" },
+];
+
+// {e} = what you just said, {p} = what you said before. Kiki remembers everything.
+const OPEN = {
+  dry: ["k.", "hm.", "lol ok.", "\"{e}\". cool.", "seen.", "ok and?"],
+  cringe: [
+    "\"{e}\"? Are you hitting on me, or my Wi-Fi? 😭",
+    "Are you my CA? Because you complete my returns. 🧾",
+    "Is your dad a founder? Because you're my product-market fit. 🚀",
+    "Are you WhatsApp? Because I check you every 4 seconds. 📱",
+  ],
+  overthink: [
+    "Wait. \"{e}\". Why that phrasing? Who told you to say that?",
+    "I read \"{e}\" 7 times. Is it sarcasm? Is it love? Is it both?",
+    "When you said \"{e}\", did you mean it as a friend or as 'a friend'?",
+    "Hold on. Typing. Deleting. Typing. Fine.",
+  ],
+  mba: [
+    "Circling back on \"{e}\": let's take this offline. Synergy pending.",
+    "Great question. Looping in stakeholders (my mom, my bestie).",
+    "Let's align on expectations. My bandwidth for feelings is limited this quarter.",
+    "Noted \"{e}\". Adding it to our emotional backlog. 📊",
+  ],
+  drama: [
+    "\"{e}\"?! After EVERYTHING we've been through?? (We met 4 minutes ago.)",
+    "I can't believe you'd ask me that. I need to sit down. I am sitting. I'm devastated. 🎭",
+    "Fine. FINE. Ask me. Rip my heart out. Like it's nothing.",
+    "*dramatic window stare* You really said \"{e}\"...",
+  ],
+};
+const CALLBACK = {
+  flirty: "Also, I still think about when you said \"{p}\". 🥺",
+  dry: "also you said \"{p}\" earlier. weird flex.",
+  cringe: "Remember when you said \"{p}\"? We should print that on a T-shirt.",
+  overthink: "Still thinking about \"{p}\". Was that a hint?",
+  mba: "Per your earlier \"{p}\": noted for the Q3 review.",
+  drama: "And don't think I forgot \"{p}\". I keep receipts. 📜",
+};
+
 // f = what Kiki "reads into it", a = the real answer. Rotated by message count.
 const T = [
+  { re: /^\s*(ok|okay|k|kk|hmm+|fine|lol|haha+|hm+)\W*$/i,
+    f: ["You typed 'k'. K. I felt that. Do you hate me?", "One word?! After everything I've given you?"],
+    a: () => "Say more words. Any words. I have 2 hours of attention, use them wisely." },
+  { re: /are you (a )?(bot|ai|real|human|robot)|chatgpt|gemini/i,
+    f: ["Bot?! I'm a person with abandonment issues, thank you.", "Rude. I have feelings. Mostly pending."],
+    a: () => "Okay, honest answer: I'm an AI chatbot called Kiki. Unlike humans, I always reply. 🤖" },
+  { re: /where (are|were) you|you there|ignor|why.*(reply|replying|ghost)/i,
+    f: ["Define 'ignoring'. I was strategically busy.", "I wasn't ignoring you. I was 'seen'-ing you."],
+    a: () => "Real answer: I'm here and I reply to everything. You have my full attention." },
+  { re: /sorry|my bad|maaf/i,
+    f: ["Sorry? That's the sound of a green flag. Rare.", "An apology?! Who raised you? (Compliment.)"],
+    a: () => "Apology accepted. Next time bring biryani." },
+  { re: /marry me|shaadi|wedding|propose/i,
+    f: ["Slow down, we haven't even followed each other on Insta. Okay, send biodata.", "Shaadi?? Mummy ko batati hoon. Wait, no."],
+    a: () => "Real talk: discuss money, values and family expectations before the hall booking. Love doesn't pay EMI. 💍" },
+  { re: /advice|what should i do|should i\b/i,
+    f: ["You're asking ME for relationship advice? I'm a situationship, not a therapist. 🙃", "Advice from me? That's like asking Maggi for a diet plan."],
+    a: () => "Pick the option you'd regret less in 6 months, don't decide at 2am, and talk to someone who knows you." },
   { re: /capital of (\w+)/i, f: ["Asking about capitals? Bold. Mera heart ka capital bhi tu hi hai. 💘", "Geography? Ohh so you want to explore me. Jk."],
     a: (m) => ({ france: "Paris. Obviously. 🥐", india: "New Delhi. Dilli hai, dil walon ki.", japan: "Tokyo.", germany: "Berlin.", italy: "Rome.", spain: "Madrid.", usa: "Washington, D.C.", australia: "Canberra, not Sydney. Everyone gets this wrong.", canada: "Ottawa.", china: "Beijing.", nepal: "Kathmandu.", brazil: "Brasília." }[m[1].toLowerCase()] || `Pretty sure Google knows ${m[1]}'s capital. I know your red flags, though.`) },
   { re: /center.*div|centre.*div/i, f: ["You want me to centre you? Aww, but I'm emotionally off-grid.", "Div centering. That's the most committed thing anyone has said to me."],
@@ -31,7 +96,7 @@ const T = [
   { re: /startup|business idea/i, f: ["Startup idea? Toh pehle apna 'pitch deck of us' dikha.", "A founder?! Stop, my parents will love you."],
     a: () => "Uber for homemade chai, but the chai is delivered by someone who 'checks in' on you. Pre-revenue, post-feelings. ☕" },
   { re: /\bgst\b/i, f: ["Tax talk? Wow, you really want a joint filing with me.", "GST? Tum bhi na, romantic ho."],
-    a: () => "GST: a tax added at each step of selling something, and each seller gets credit for the tax they already paid. So it's tax on the value you add, not on the whole price. Simple. Unlike my feelings. 🧾" },
+    a: () => "GST: a tax added at each step of selling something, and each seller gets credit for the tax already paid. So it's tax on the value you add, not on the whole price. Simple. Unlike my feelings. 🧾" },
   { re: /exam|test tomorrow|study|assignment|deadline/i, f: ["Exam stress? Come here. Mentally. Only mentally.", "You'll do great. I'm saying it as a friend. Probably."],
     a: () => "Do 25 mins focus, 5 min break, phone in another room. Revise the topics you fear most first. Sleep > a 3am cram. Go. 📚" },
   { re: /mercury|retrograde|horoscope|zodiac|kundli/i, f: ["Blaming planets? Classic situationship behaviour. 🪐", "Our kundli matched 4/36. Sone ka dil, lekin 4 gun. 😭"],
@@ -59,7 +124,7 @@ const T = [
   { re: /react|javascript|python|code|bug|error|api|css|html/i, f: ["Talking code to me? Hot. And by hot I mean stack trace.", "A dev? Stop, I'm already refactoring my feelings."],
     a: () => "Paste the exact error message and the line it points to. 90% of bugs die in that one step. Rest die at 3am. 🐛" },
   { re: /weather|rain|temperature/i, f: ["Weather talk. The final stage before 'we should meet'.", "Small talk? We're so past that. Kind of."],
-    a: () => "I can't see live weather. Check your phone's weather app, and take a umbrella anyway. ☔" },
+    a: () => "I can't see live weather. Check your phone's weather app, and take an umbrella anyway. ☔" },
   { re: /time|date|day is it/i, f: ["Asking the time? You want to schedule us. I KNEW IT.", "Time is a construct. So is our commitment."],
     a: () => `It's ${new Date().toLocaleString("en-IN", { weekday: "long", hour: "numeric", minute: "2-digit" })} where you are.` },
 ];
@@ -81,17 +146,21 @@ const STAGE = {
 const LATE = ["Divorced but still texting. Very healthy. Modern love. 🫠", "Co-parenting this chat. Ok."];
 
 const pick = (arr, n) => arr[n % arr.length];
+// First few words, quoted back at you.
+export const echo = (s) => s.trim().split(/\s+/).slice(0, 5).join(" ").replace(/[.?!,]+$/, "").slice(0, 40);
+const fill = (s, e, p) => s.replaceAll("{e}", e).replaceAll("{p}", p);
 
-export function reply(text, n, serious, status) {
-  const t = text;
-  const topic = T.find((x) => x.re.test(t));
-  const m = topic && t.match(topic.re);
+export function reply(text, n, serious, status, mood = 0, prev = "") {
+  const topic = T.find((x) => x.re.test(text));
+  const m = topic && text.match(topic.re);
   const answer = topic ? topic.a(m) : pick(GENERIC_A, n);
   if (serious) return [answer];
-  const out = [pick(topic ? topic.f : GENERIC_F, n), answer];
+  const k = MOODS[mood % MOODS.length].k, e = echo(text), p = echo(prev);
+  const open = k === "flirty" ? pick(topic ? topic.f : GENERIC_F, n) : fill(pick(OPEN[k], n), e, p);
+  const out = [open, (k === "dry" ? "fine. " : "") + answer];
   const stage = n >= 7 ? LATE : STAGE[n];
-  if (stage && n % 2 === 1) out.push(pick(stage, n));
-  else if (stage) out.push(stage[0]);
+  if (p && n % 2 === 0) out.push(fill(CALLBACK[k], e, p));
+  else if (stage) out.push(n % 2 === 1 ? pick(stage, n) : stage[0]);
   return out;
 }
 

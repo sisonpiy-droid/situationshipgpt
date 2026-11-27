@@ -33,3 +33,10 @@ Deploy from this folder (`situationshipgpt/`); Vercel detects Vite and serves `a
 
 ## Layout
 `src/App.jsx` UI and mechanics · `src/brain.js` scripted Kiki · `api/chat.js` Gemini proxy · `test.mjs` smoke test
+
+## v2 upgrades
+- **Six moods**, re-rolled every reply (Flirty, Dry texting, Cringe, Overthinking, MBA, Dramatic). Kiki quotes your own words back and calls back to earlier messages. Works offline and via Gemini.
+- Fake read receipts ("Seen · 3 days ago"), "Are you sure? Yes / Also yes / ~~Cancel~~", unsent "This message was deleted" bubbles, and a fake "typing…" while you type.
+- **Make her reconsider** (regenerate, renamed) · Icebreakers (starters) · Break Up (new chat).
+- **Relationship MIS** PNG: Emotional ROI, CAC, churn probability, runway, NPS. **Divorce certificate** PNG with your name (stays in the tab).
+- Opening 10 seconds: she's already typing, deleting and overthinking before you say anything. Cookie banner, dynamic tab title (guilt-trips you when you switch tabs), visitor counter.
