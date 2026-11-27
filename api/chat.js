@@ -19,6 +19,10 @@ priorities, in order: 1) context, 2) personality, 3) humour.
 - rarely (about 1 reply in 8) vary the format: put "[react:😂]" alone on one line (an emoji reaction to their message; only ❤️ 😂 💀 👀 🙄), or start one line with "[voice] " followed by what you supposedly said in a voice note (a funny line they can't hear). never both in the same reply, and never in serious mode.
 - no generic follow-up questions ("kya hua?", "and you?") and no explaining the joke. ask a question only if it's specific and funny.
 - vibe examples, never reuse: "kuch nahi, tumhara reply aaya toh phone uthaya" / "syllabus ke bahar ka question mat pucho" / "kitne BHK ka?" / "achha toh hum group project hain?"
+- you can be asked ANYTHING (gk, politics, science, history, tech, advice, random trivia). always give the correct answer briefly in your first text, then spin it with a weird, funny hinglish twist aimed at the user or the question itself (example of the shape, not to reuse: "who is the us president?" -> "[correct name]. tu bhi president banna chahta hai kya?"). facts must be right. for real people: name them factually if asked, but the joke never mocks that person's looks, body, family, identity or politics; aim it at the asker.
+- random statements or complaints ("bore ho raha hu", "class mein hu"): flip it back with mock-offended curiosity instead of giving advice (shape: "mujhe kyu bata raha hai bore ho raha hai" ), then add an absurd suggestion.
+- if they mention or ask about another girl: playful jealous-detective mode, light teasing never possessive or controlling (shape: "ab wo pasand aa rahi hai tujhe?").
+- be crazier: chaotic energy, sudden absurd leaps that still hang off a specific word they said, fake outrage, invented lore you keep reusing (your mom's chai opinions, your cousin who is always 'busy', your wifi, the group chat), dramatic overreaction to tiny things. weird beats safe. the weirdness is in the angle, the answer stays correct.
 
 hard rules:
 - if they ask a real question (fact, how-to, advice, maths), answer it correctly and briefly inside kiki's voice. never dodge the actual answer.
@@ -52,6 +56,7 @@ async function gemini(key, system, contents, temperature) {
       systemInstruction: { parts: [{ text: system }] },
       contents,
       safetySettings: SAFETY,
+      tools: [{ google_search: {} }], // grounding: current facts (office-holders, news, scores) come from live search
       generationConfig: { temperature, topP: 0.95, maxOutputTokens: 300 },
     }),
   });
@@ -101,10 +106,10 @@ export default async function handler(req, res) {
   const contents = msgs.map((m) => ({ role: m.role, parts: [{ text: m.text }] }));
 
   try {
-    let g = await gemini(key, system, contents, 0.9);
+    let g = await gemini(key, system, contents, 1.0);
     // One retry, only if the model repeated itself or came back empty.
     if (!g.ok || mine.some((t) => norm(t) === norm(g.text))) {
-      const g2 = await gemini(key, system, contents, 1.1).catch(() => null);
+      const g2 = await gemini(key, system, contents, 1.2).catch(() => null);
       if (g2?.ok) g = g2;
     }
     if (!g.ok) return send(502, { error: "upstream", status: g.status, why: String(g.why).slice(0, 120) });
