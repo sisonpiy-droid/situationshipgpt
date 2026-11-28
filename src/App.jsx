@@ -37,7 +37,7 @@ async function askLLM(history, status, serious, mood, stop) {
       body: JSON.stringify({ messages: history.filter((m) => m.text !== "__deleted__" && !m.err).slice(-16).map(({ role, text }) => ({ role, text })), status, serious, mood, stop }),
     });
     const d = await r.json().catch(() => ({}));
-    return r.ok && d.reply ? d.reply.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3) : { why: [r.status, d.error, d.status, d.why].filter(Boolean).join(" ").slice(0, 90) };
+    return r.ok && d.reply ? d.reply.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 4) : { why: [r.status, d.error, d.status, d.why].filter(Boolean).join(" ").slice(0, 90) };
   } catch (e) {
     return { why: String(e.name || e) };
   }
