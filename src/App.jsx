@@ -3,9 +3,12 @@ import { MOODS, RESUME_RE, STARTERS, STOP_RE, statusFor } from "./brain.js";
 
 const ERRS = ["wifi ne mujhe leave on read kar diya 📡", "connection lost. emotionally also.", "server ne ghost kar diya. not me, i swear", "network aur tum, dono unstable"];
 
+// Chat survives a refresh (stored only in this browser).
+const load = () => { try { return JSON.parse(localStorage.getItem("kiki-chat") || "null"); } catch { return null; } };
+const RESTORED = !!load()?.msgs?.some((m) => m.role === "me");
 const SITE = "situationshipgpt-ten.vercel.app";
 const LABELS = ["Send", "Don't text me", "Beg to send", "Your call"];
-const TYPING = ["Typing", "Deleting", "Consulting the group chat", "Overthinking", "Screenshotting your text for besties", "Typing since 3 hrs ago"];
+const TYPING = ["Typing", "Deleting", "Consulting the group chat", "Overthinking", "Screenshotting your text for besties", "Typing since 3 hrs ago", "Googling it (rudely)"];
 const NOTIFS = [
   "Kiki liked your message. Then unliked it. 💔",
   "Kiki viewed your story 11 times 👀",
@@ -179,10 +182,10 @@ function downloadPNG(rows, name, cert) {
 
 // ---- app -------------------------------------------------------------
 export default function App() {
-  const uid = useRef(0);
-  const [msgs, setMsgs] = useState([{ id: 0, role: "her", text: "heyyy 👀 oh. it's you.", t: time() }]);
+  const uid = useRef(load()?.uid || 0);
+  const [msgs, setMsgs] = useState(() => (RESTORED && load().msgs) || [{ id: 0, role: "her", text: "heyyy 👀 oh. it's you.", t: time() }]);
   const [text, setText] = useState("");
-  const [damage, setDamage] = useState(4);
+  const [damage, setDamage] = useState(() => (RESTORED && load().damage) || 4);
   const [busy, setBusy] = useState(false);
   const [ghost, setGhost] = useState(false); // fake "typing…" with no message coming
   const [typing, setTyping] = useState(0);
@@ -217,10 +220,13 @@ export default function App() {
   // Scroll only the message list. scrollIntoView also scrolled the whole page, yanking it back up whenever a message or "typing" state changed.
   useEffect(() => { const el = endRef.current?.parentElement; el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }, [msgs, typingNow]);
   useEffect(() => { if (!busy && !sure) inputRef.current?.focus({ preventScroll: true }); }, [busy, sure]); // keep typing seamlessly
+  useEffect(() => { try { localStorage.setItem("kiki-chat", JSON.stringify({ msgs: msgs.filter((m) => !m.err).slice(-60), damage, uid: uid.current })); } catch { /* private mode: fine */ } }, [msgs, damage]);
+  useEffect(() => { if (cookie) { const t = setTimeout(() => setCookie(false), 9000); return () => clearTimeout(t); } }, [cookie]);
   useEffect(() => { if (notif) { const t = setTimeout(() => setNotif(null), 3500); return () => clearTimeout(t); } }, [notif]);
 
   // First 10 seconds: she's already making it weird before you've typed anything.
   useEffect(() => {
+    if (RESTORED) return; // returning visitor: no opening act
     const add = (t) => setMsgs((m) => (m.some((x) => x.role === "me") ? m : [...m, { id: ++uid.current + 1000, role: "her", text: t, t: time() }]));
     const ids = [
       setTimeout(() => toast("Kiki viewed your profile 4 times 👀"), 900),
