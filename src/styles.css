@@ -106,3 +106,5 @@ button{font-family:"Comic Neue",cursive}
  .share-btn{bottom:70px}
 }
 @media(max-width:760px){.cookie{bottom:150px}.breakup{top:auto;bottom:6px;left:6px}.foot{padding-bottom:44px}}
+.share-btn.wa{bottom:56px;text-decoration:none;color:#075e54;transform:rotate(2deg)}
+@media(max-width:760px){.share-btn.wa{bottom:116px}}

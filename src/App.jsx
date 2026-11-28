@@ -489,6 +489,7 @@ export default function App() {
 
       <button className="breakup" onClick={breakUp}>💔 BREAK UP</button>
       {n >= 2 && <button className="rcpt share-btn" onClick={() => shareChat(msgs, status)}>📸 Share this chat</button>}
+      {n >= 2 && <a className="rcpt share-btn wa" href={"https://wa.me/?text=" + encodeURIComponent("I'm in a situationship with an AI and she left me on read 💀 try it: https://" + SITE)} target="_blank" rel="noreferrer">💬 Send to a friend</a>}
       {n >= 5 && <button className="rcpt" onClick={() => setPanel("mis")}>📊 Relationship MIS</button>}
       {n >= 6 && <button className="rcpt cert-btn" onClick={() => setPanel("cert")}>📜 Divorce papers</button>}
       {notif && <div className="notif" role="status">🔔 {notif}</div>}
